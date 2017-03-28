@@ -39,3 +39,4 @@ web/siteauth.sqlite
 
 # Ignore feeds
 data/feeds/*
+modules/signatures/*
