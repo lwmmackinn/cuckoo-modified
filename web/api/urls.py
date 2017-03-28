@@ -24,6 +24,7 @@ urlpatterns = [
     url(r"^tasks/status/(?P<task_id>\d+)/$", views.tasks_status),
     url(r"^tasks/get/report/(?P<task_id>\d+)/$", views.tasks_report),
     url(r"^tasks/get/report/(?P<task_id>\d+)/(?P<report_format>\w+)/$", views.tasks_report),
+    url(r"^tasks/get/lw/(?P<task_id>\d+)/$", views.tasks_lw),
     url(r"^tasks/get/iocs/(?P<task_id>\d+)/$", views.tasks_iocs),
     url(r"^tasks/get/iocs/(?P<task_id>\d+)/(?P<detail>detailed)/$", views.tasks_iocs),
     url(r"^tasks/get/screenshot/(?P<task_id>\d+)/$", views.tasks_screenshot),

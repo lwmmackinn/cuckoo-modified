@@ -1281,6 +1281,84 @@ def tasks_report(request, task_id, report_format="json"):
         resp = {"error": True,
                 "error_value": "Invalid report format specified"}
         return jsonize(resp, response=True)
+if apiconf.taskiocs.get("enabled"):
+    raterps = apiconf.taskiocs.get("rps")
+    raterpm = apiconf.taskiocs.get("rpm")
+    rateblock = True
+@ratelimit(key="ip", rate=raterps, block=rateblock)
+@ratelimit(key="ip", rate=raterpm, block=rateblock)
+def tasks_lw(request, task_id, detail=None):
+    if request.method != "GET":
+        resp = {"error": True, "error_value": "Method not allowed"}
+        return jsonize(resp, response=True)
+
+    if not apiconf.taskiocs.get("enabled"):
+        resp = {"error": True,
+                "error_value": "IOC download API is disabled"}
+        return jsonize(resp, response=True)
+
+    check = validate_task(task_id)
+    if check["error"]:
+        return jsonize(check, response=True)
+
+    buf = {}
+    if repconf.mongodb.get("enabled") and not buf:
+        buf = results_db.analysis.find_one({"info.id": int(task_id)})
+    if es_as_db and not buf:
+        tmp = es.search(
+                  index=fullidx,
+                  doc_type="analysis",
+                  q="info.id: \"%s\"" % task_id
+               )["hits"]["hits"]
+        if tmp:
+            buf = tmp[-1]["_source"]
+        else:
+            buf = None
+    if buf is None:
+        resp = {"error": True, "error_value": "Sample not found in database"}
+        return jsonize(resp, response=True)
+    if repconf.jsondump.get("enabled") and not buf:
+        jfile = os.path.join(CUCKOO_ROOT, "storage", "analyses",
+                             "%s" % task_id, "reports", "report.json")
+        with open(jfile, "r") as jdata:
+            buf = json.load(jdata)
+    if not buf:
+        resp = {"error": True,
+                "error_value": "Unable to retrieve report to parse for IOCs"}
+        return jsonize(resp, response=True)
+
+    data = {}
+    data["malfamily"] = buf["malfamily"]
+    data["malscore"] = buf["malscore"]
+    #virustotal
+    data["virustotal"] = buf["virustotal"]
+    # Grab sigs
+    data["signatures"] = []
+    for sig in buf["signatures"]:
+        del sig["alert"]
+        data["signatures"].append(sig)
+    # Grab target file info
+    if "target" in buf.keys():
+        data["target"] = buf["target"]
+        if data["target"]["category"] == "file":
+            del data["target"]["file"]["path"]
+            del data["target"]["file"]["guest_paths"]
+    data["network"] = {}
+    if "network" in buf.keys():
+        data["network"]["traffic"] = {}
+        if "domains" in buf["network"].keys():
+            data["network"]["domains"] = buf["network"]["domains"]
+        else :
+            pass
+    data["network"]["ids"] = {}
+    if "suricata" in buf.keys() and isinstance(buf["suricata"], dict):
+        if "alerts" in buf["suricata"].keys():
+            data["network"]["ids"]["totalalerts"] = len(buf["suricata"]["alerts"])
+            data["network"]["ids"]["alerts"] = buf["suricata"]["alerts"]
+        else:
+            pass
+    resp = {"error": False, "data": data}
+    return jsonize(resp, response=True)
 
 if apiconf.taskiocs.get("enabled"):
     raterps = apiconf.taskiocs.get("rps")
